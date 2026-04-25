@@ -34,34 +34,58 @@ class DataFrame(np.ndarray):
 
     @staticmethod
     def load_csv(source):
-        data = np.genfromtxt(
-            source,
-            delimiter=",",
-            dtype=object,
-            names=True,
-            missing_values="",
-            filling_values=b"",
-            encoding=None,
-        )
+        import csv
+        from io import StringIO
+
+        # Read raw text
+        if hasattr(source, 'read'):
+            raw = source.read()
+        else:
+            with open(source, 'r', encoding='utf-8') as f:
+                raw = f.read()
+
+        reader = csv.reader(StringIO(raw))
+        rows = list(reader)
+
+        if len(rows) < 2:
+            raise ValueError("CSV must have a header and at least one data row.")
+
+        headers = [h.strip().strip('"') for h in rows[0]]
 
         def clean(val):
-            if isinstance(val, bytes):
-                val = val.decode("utf-8").strip().strip('"')
-            if val in ("", "?"):
+            val = val.strip().strip('"')
+            if val in ('', '?', 'NA', 'N/A', 'nan', 'NaN'):
                 return np.nan
             return val
 
-        clean_vec = np.vectorize(clean, otypes=[object])
-        cleaned = np.empty(data.shape, dtype=data.dtype)
-        dtypes = {}
+        # Build column arrays
+        n_rows = len(rows) - 1
+        n_cols = len(headers)
+        raw_cols = {h: [] for h in headers}
 
-        for name in data.dtype.names:
-            col = clean_vec(data[name])
+        for row in rows[1:]:
+            # pad or trim row to match header length
+            while len(row) < n_cols:
+                row.append('')
+            for i, h in enumerate(headers):
+                raw_cols[h].append(clean(row[i]))
+
+        dtypes = {}
+        cleaned = {}
+
+        for name in headers:
+            col = np.array(raw_cols[name], dtype=object)
             casted = DataFrame._try_cast(col)
             cleaned[name] = casted
             dtypes[name] = DataFrame._infer_dtype(casted)
 
-        return DataFrame(cleaned, dtypes=dtypes)
+        # Build structured array
+        dt = np.dtype([(name, object) for name in headers])
+        data = np.empty(n_rows, dtype=dt)
+        for name in headers:
+            data[name] = cleaned[name]
+
+        return DataFrame(data, dtypes=dtypes)
 
     def get_numerical(self):
         columns = [
