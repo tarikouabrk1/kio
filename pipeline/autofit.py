@@ -17,7 +17,7 @@ Usage
 import numpy as np
 import time
 
-from Eda.inspector import EDAInspector
+from eda.inspector import EDAInspector
 from preprocessing.impute.simple import SimpleImputer, MedianImputer, ModeImputer
 from preprocessing.encode.label import LabelEncoder
 from preprocessing.encode.onehot import OneHotEncoder

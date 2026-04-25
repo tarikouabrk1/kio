@@ -100,7 +100,7 @@ def eda_tool(csv_text: str) -> str:
     Useful when the agent only needs a data audit.
     """
     try:
-        from Eda.inspector import EDAInspector
+        from eda.inspector import EDAInspector
         df     = _load_csv_from_string(csv_text)
         report = EDAInspector(df).run()
         return json.dumps(report, default=_json_safe, indent=2)
