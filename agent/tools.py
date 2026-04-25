@@ -138,7 +138,7 @@ def _build_summary(report: dict) -> str:
     params  = report.get("best_params", {})
     metrics = report.get("eval_metrics", {})
     fi      = report.get("feature_importance", [])
-    top_f   = fi[0]["feature"] if fi else "unknown"
+    top_f   = fi[0]["feature"] if fi else "N/A (model has no feature importance)"
     elapsed = report.get("elapsed_seconds", "?")
 
     # Pick the headline metric
