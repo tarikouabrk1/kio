@@ -175,7 +175,7 @@ class EDAInspector:
     def _profile_all(self) -> dict:
         profiles = {}
         for col, dtype in self.df.dtypes.items():
-            if dtype in ("int", "float"):
+            if dtype in ("int","bool" "float"):
                 profiles[col] = self._profile_numerical(col)
             else:
                 profiles[col] = self._profile_categorical(col)
