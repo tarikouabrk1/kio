@@ -88,6 +88,8 @@ class AutoFit:
         search_strategy: str = "grid",
         random_iter: int = 10,
         verbose: bool = True,
+        candidates: list = None,      
+
     ):
         if task not in ("auto", "classification", "regression"):
             raise ValueError("task must be 'auto', 'classification', or 'regression'.")
@@ -101,6 +103,7 @@ class AutoFit:
         self.search_strategy = search_strategy
         self.random_iter = random_iter
         self.verbose   = verbose
+        self.candidates = candidates 
 
         # Artifacts populated during fit
         self._eda_report      = None
@@ -340,10 +343,12 @@ class AutoFit:
         return X[train_idx], X[test_idx], y[train_idx], y[test_idx]
 
     def _search(self, X_train, y_train, X_test, y_test, task):
-        candidates = (
-            _CLASSIFICATION_CANDIDATES if task == "classification"
-            else _REGRESSION_CANDIDATES
-        )
+
+        if self.candidates is not None:
+            candidates = self.candidates
+        else:
+            candidates = (_CLASSIFICATION_CANDIDATES if task == "classification" else _REGRESSION_CANDIDATES)
+            
         metric     = accuracy if task == "classification" else \
                      (lambda a, p: -float(np.mean((a - p) ** 2)))   # neg-MSE
         greater_is_better = True
