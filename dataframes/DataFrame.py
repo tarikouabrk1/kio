@@ -20,9 +20,22 @@ class DataFrame(np.ndarray):
             return column
 
     @staticmethod
-    def load_csv(filename):
+    def _infer_dtype(casted):
+        if casted.dtype == float:
+            non_nan = casted[~np.isnan(casted)]
+            if non_nan.size == 0:
+                return "float"
+            if all(v in (0.0, 1.0) for v in non_nan):
+                return "bool"
+            if all(v.is_integer() for v in non_nan):
+                return "int"
+            return "float"
+        return "str"
+
+    @staticmethod
+    def load_csv(source):
         data = np.genfromtxt(
-            filename,
+            source,
             delimiter=",",
             dtype=object,
             names=True,
@@ -46,18 +59,13 @@ class DataFrame(np.ndarray):
             col = clean_vec(data[name])
             casted = DataFrame._try_cast(col)
             cleaned[name] = casted
-            if casted.dtype == float:
-                non_nan = casted[~np.isnan(casted)]
-                original = "int" if all(v.is_integer() for v in non_nan) else "float"
-            else:
-                original = "str"
-            dtypes[name] = original
+            dtypes[name] = DataFrame._infer_dtype(casted)
 
         return DataFrame(cleaned, dtypes=dtypes)
 
     def get_numerical(self):
         columns = [
-            name for name, value in self.dtypes.items() if value in ("int", "float")
+            name for name, value in self.dtypes.items() if value in ("bool", "int", "float")
         ]
         view = self[columns]
         view.dtypes = {key: self.dtypes[key] for key in columns}
@@ -72,7 +80,7 @@ class DataFrame(np.ndarray):
 
     def __getitem__(self, key):
         result = super().__getitem__(key)
-        if isinstance(key, str) and self.dtypes.get(key) in ("int", "float"):
+        if isinstance(key, str) and self.dtypes.get(key) in ("bool", "int", "float"):
             return result.astype(np.float64)
         return result
 

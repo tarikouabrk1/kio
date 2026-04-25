@@ -32,9 +32,9 @@ from models.decisiontree.decisiontreeregression import DecisionTreeRegression
 from models.decisiontree.randomforestclassifier import RandomForestClassifier
 from models.decisiontree.randomforestregression import RandomForestRegression
 from optimization.gridsearch.gridsearch import GridSearch
-from optimization.kfold.kfold import KFold
+from optimization.randomsearch.randomsearch import RandomSearch
 from evaluation.classification.classification import (
-    accuracy, classification_report,
+    accuracy, classification_report, confusion_matrix,
 )
 from evaluation.regression.regression import regression_report
 
@@ -85,15 +85,21 @@ class AutoFit:
         cv: int = 3,
         test_size: float = 0.2,
         seed: int = 42,
+        search_strategy: str = "grid",
+        random_iter: int = 10,
         verbose: bool = True,
     ):
         if task not in ("auto", "classification", "regression"):
             raise ValueError("task must be 'auto', 'classification', or 'regression'.")
+        if search_strategy not in ("grid", "random"):
+            raise ValueError("search_strategy must be 'grid' or 'random'.")
         self.target    = target
         self.task      = task
         self.cv        = cv
         self.test_size = test_size
         self.seed      = seed
+        self.search_strategy = search_strategy
+        self.random_iter = random_iter
         self.verbose   = verbose
 
         # Artifacts populated during fit
@@ -149,6 +155,7 @@ class AutoFit:
         y_pred = self.best_model.predict(X_test)
         if task == "classification":
             eval_metrics = classification_report(y_test, y_pred)
+            eval_metrics["confusion_matrix"] = confusion_matrix(y_test, y_pred).tolist()
         else:
             eval_metrics = regression_report(y_test, y_pred)
 
@@ -191,7 +198,11 @@ class AutoFit:
         if self.best_model is None:
             raise ValueError("Call fit() before predict().")
         X, _, _ = self._build_features(df, transform_only=True)
-        return self.best_model.predict(X)
+        preds = self.best_model.predict(X)
+        target_encoder = self._encoders.get("__target__")
+        if target_encoder is not None:
+            return target_encoder.inverse_transform(preds)
+        return preds
 
     def print_report(self):
         """Pretty-print the AutoFit report."""
@@ -223,7 +234,7 @@ class AutoFit:
         if self.task != "auto":
             return self.task
         dtype = df.dtypes.get(self.target, "str")
-        if dtype == "str":
+        if dtype in ("str", "bool"):
             return "classification"
         col = np.array(df[self.target], dtype=np.float64)
         unique = np.unique(col[~np.isnan(col)])
@@ -238,8 +249,15 @@ class AutoFit:
         Returns (X, y, feature_names).
         """
         features = [f for f in df.get_features() if f != self.target]
-        target_col = np.array(df[self.target], dtype=np.float64) if task != "classification" \
-                     else np.array(df[self.target])
+        has_target = self.target in df.get_features()
+        target_col = None
+        if has_target:
+            if task != "classification":
+                target_col = np.array(df[self.target], dtype=np.float64)
+            else:
+                target_col = np.array(df[self.target])
+        elif not transform_only:
+            raise ValueError(f"Target column '{self.target}' was not found in the DataFrame.")
 
         cols = []
         names = []
@@ -247,7 +265,7 @@ class AutoFit:
         for col in features:
             dtype = df.dtypes.get(col, "str")
 
-            if dtype in ("int", "float"):
+            if dtype in ("bool", "int", "float"):
                 arr = np.array(df[col], dtype=np.float64)
                 # Impute
                 if not transform_only:
@@ -290,9 +308,12 @@ class AutoFit:
                 cols.append(encoded)
                 names.extend(feature_names_ohe)
 
-        X = np.column_stack(cols) if cols else np.empty((len(target_col), 0))
+        X = np.column_stack(cols) if cols else np.empty((len(df), 0))
 
         # Target: impute missing if any
+        if target_col is None:
+            return X, None, names
+
         if task == "classification":
             # Label-encode string targets
             if target_col.dtype == object:
@@ -356,13 +377,26 @@ class AutoFit:
                 continue
 
             try:
-                gs = GridSearch(
-                    ModelClass,
-                    param_grid=param_grid,
-                    metric=metric,
-                    greater_is_better=greater_is_better,
-                )
-                best_m, best_p, best_s = gs.search(X_train, y_train, X_test, y_test)
+                if self.search_strategy == "grid":
+                    search = GridSearch(
+                        ModelClass,
+                        param_grid=param_grid,
+                        metric=metric,
+                        greater_is_better=greater_is_better,
+                        cv=self.cv,
+                        seed=self.seed,
+                    )
+                else:
+                    search = RandomSearch(
+                        ModelClass,
+                        param_distributions=param_grid,
+                        metric=metric,
+                        n_iter=self.random_iter,
+                        greater_is_better=greater_is_better,
+                        cv=self.cv,
+                        seed=self.seed,
+                    )
+                best_m, best_p, best_s = search.search(X_train, y_train, X_test, y_test)
                 search_results.append({
                     "model":  name,
                     "params": best_p,
@@ -376,6 +410,9 @@ class AutoFit:
             except Exception as exc:
                 if self.verbose:
                     print(f"    {name} failed: {exc}")
+
+        if self.best_model is None:
+            raise RuntimeError("Model search failed for every candidate.")
 
         return search_results
 

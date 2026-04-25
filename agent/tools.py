@@ -25,7 +25,6 @@ Tool schema
 }
 """
 
-import io
 import json
 import numpy as np
 
@@ -44,6 +43,8 @@ def automl_tool(
     cv: int = 3,
     test_size: float = 0.2,
     seed: int = 42,
+    search_strategy: str = "grid",
+    random_iter: int = 10,
     verbose: bool = False,
 ) -> str:
     """
@@ -71,6 +72,8 @@ def automl_tool(
             cv=cv,
             test_size=test_size,
             seed=seed,
+            search_strategy=search_strategy,
+            random_iter=random_iter,
             verbose=verbose,
         )
         report = pipeline.fit(df)
@@ -110,18 +113,10 @@ def eda_tool(csv_text: str) -> str:
 # =========================================================
 
 def _load_csv_from_string(csv_text: str) -> DataFrame:
-    """Write csv_text to a temp file and load it as a GlassBox DataFrame."""
-    import tempfile, os
-    with tempfile.NamedTemporaryFile(
-        mode="w", suffix=".csv", delete=False, encoding="utf-8"
-    ) as f:
-        f.write(csv_text)
-        tmp_path = f.name
-    try:
-        df = DataFrame.load_csv(tmp_path)
-    finally:
-        os.unlink(tmp_path)
-    return df
+    """Load csv_text directly from memory for sandbox- and WASM-friendly use."""
+    from io import StringIO
+
+    return DataFrame.load_csv(StringIO(csv_text))
 
 
 def _json_safe(obj):
@@ -199,6 +194,17 @@ TOOL_SCHEMA = {
                         "enum":        ["auto", "classification", "regression"],
                         "default":     "auto",
                         "description": "ML task type. 'auto' infers from the target column.",
+                    },
+                    "search_strategy": {
+                        "type":        "string",
+                        "enum":        ["grid", "random"],
+                        "default":     "grid",
+                        "description": "Hyperparameter search strategy.",
+                    },
+                    "random_iter": {
+                        "type":        "integer",
+                        "default":     10,
+                        "description": "Number of random search samples when search_strategy='random'.",
                     },
                 },
                 "required": ["csv_text", "target"],
