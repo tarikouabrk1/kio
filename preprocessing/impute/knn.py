@@ -9,10 +9,8 @@ class KNNImputer:
     def fit(self, X):
 
         X = X.copy()
-        N = X.get_numerical()
-        C = X.get_object()
-
-        n_rows, n_cols = X.format()
+        n_rows, _ = X.format()
+        columns = X.get_features()
 
         null_lines = []
         non_null_lines = []
@@ -34,7 +32,7 @@ class KNNImputer:
 
             neighbors_idx = [i for i, _ in usefullDistances]
 
-            for col in range(n_cols):
+            for col in columns:
 
                 if is_missing(line[col]):
 
@@ -44,10 +42,13 @@ class KNNImputer:
                         if not is_missing(X[j][col]):
                             values.append(X[j][col])
 
-                    if type(line[col]) == np.float64:
-                        X[idx][col] = mean(values)[0]
+                    if not values:
+                        continue
+
+                    if X.get_type(col) in ("bool", "int", "float"):
+                        X[idx][col] = mean(values)
                     else:
-                        X[idx][col] = majority_vote(values)[0]
+                        X[idx][col] = majority_vote(values)
 
 
         self.X_ = X
@@ -59,5 +60,4 @@ class KNNImputer:
     def fit_transform(self, X: np.array) -> np.array:
         self.fit(X)
         return self.transform(X)
-
 
