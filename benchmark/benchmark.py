@@ -10,7 +10,8 @@ on three standard datasets:
 Run from project root:
     python -m benchmark.benchmark
 """
-
+import json
+from datetime import datetime
 import sys
 import numpy as np
 from io import StringIO
@@ -222,4 +223,13 @@ if __name__ == "__main__":
         sys.exit(1)
     else:
         print("  All benchmarks passed ≥90% of Scikit-Learn baseline.")
+        output = {
+            "run_date": datetime.now().isoformat(),
+             "passed": True,
+            "results": results,
+            }
+        with open("benchmark/results.json", "w") as f:
+            json.dump(output, f, indent=2)
+            print("  Results saved to benchmark/results.json")
         sys.exit(0)
+
