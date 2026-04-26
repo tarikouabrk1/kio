@@ -5,6 +5,7 @@ from math_utils.statistics import (
 )
 
 
+
 class EDAInspector:
     """
     White-box Automated EDA module.
