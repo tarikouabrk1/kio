@@ -287,8 +287,6 @@ What is still rough:
 
 GlassBoxAI is a solid scratch-built project, but it is still a project library rather than a production ML framework. A few things to keep in mind:
 
-- it is not benchmarked broadly against established libraries yet
-- it does not have industrial-scale dataset support
 - it does not yet have a formal packaging / distribution setup
 - some algorithms and interfaces would benefit from more edge-case hardening
 
